@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from scipy import ndimage
 from scipy import interpolate
-import sys
+from progressBar import *
 
 
 #function to mask data within a radius of a certain point
@@ -118,9 +118,7 @@ all_temps = []
 #progress bar:
 i = 0
 j = 0
-sys.stdout.write("[%-20s] %d%%" % ('='*j, 5*j))
-sys.stdout.flush()
-
+initBar()
 
 for c in range(len(boss_clean)):
     ra_pix = int(round(center_pix[c,0]))
@@ -137,13 +135,8 @@ for c in range(len(boss_clean)):
     temp = np.sum(maskAr*normMap)/size
     all_temps.append(temp)
     i = i+1
+    updateBar(i, j, len(boss_clean))
 
-    if i > len(boss_clean)/20:
-        sys.stdout.write('\r')
-        sys.stdout.write("[%-20s] %d%%" % ('='*j, 5*j))
-        sys.stdout.flush()
-        i = 0
-        j = j+1
 
 
 print('Saving temperatures to catalog')
