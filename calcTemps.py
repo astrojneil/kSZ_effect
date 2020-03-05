@@ -116,9 +116,7 @@ print('Beginning loop through BOSS galaxies:')
 all_temps = []
 
 #progress bar:
-i = 0
-j = 0
-initBar()
+i,j = initBar()
 
 for c in range(len(boss_clean)):
     ra_pix = int(round(center_pix[c,0]))
