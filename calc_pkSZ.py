@@ -1,8 +1,8 @@
 #This script calculates the pkSZ signal within each separation bin using the
 #pairs of galaxies from the catalog created with pairCatalog.py
 #The errors are estimated with a bootstrap resampling technique; resampling
-#each distance bin 1000 times. The standard deviation of the distribution of 
-#these samples is then quoted as the error on each point. 
+#each distance bin 1000 times. The standard deviation of the distribution of
+#these samples is then quoted as the error on each point.
 
 #The results are then plotted pkSZ vs. Separation
 
@@ -14,7 +14,7 @@ from progressBar import *
 import random
 
 #load data
-pairData = pd.read_csv('pairCatalog.csv')
+pairData = pd.read_csv('pairCatalog_short.csv')
 
 #define bins
 binSize = 30
@@ -35,7 +35,7 @@ for i in range(numBins):
     binCenters.append(binCen)
 
     print('Bin: {} to {}'.format(binStart, binEnd))
-    
+
     #select rows for each bin
     bin_data = pairData[(pairData['r_ij'] >= binStart) & (pairData['r_ij'] < binEnd)]
     N = len(bin_data['r_ij'])
