@@ -13,6 +13,8 @@ import numpy as np
 from scipy import ndimage
 from scipy import interpolate
 from progressBar import *
+import numpy.ma as ma
+from scipy.integrate import simps
 
 
 #function to mask data within a radius of a certain point
@@ -36,11 +38,13 @@ def datamask(data, radius, point):
 
 #open files
 print('Opening Files and Initializing...')
-ACT_table = fits.open('../catalogs/ACT_148.fits')
+ACT_table = fits.open('../../catalogs/ACT_148.fits')
+ACT_hits = fits.open('../../catalogs/ACT_148_equ_season_3_1way_hits_v3.fits')
 ACT_data = ACT_table[0].data
 ACT_header = ACT_table[0].header
+hits = ACT_hits[0].data
 
-boss_clean = pd.read_csv('../catalogs/cleaned_boss.csv')
+boss_clean = pd.read_csv('../../catalogs/cleaned_boss.csv')
 
 #define pixel/world coordinates
 w = wcs.WCS(ACT_header)
@@ -67,7 +71,7 @@ ynew = np.linspace(0, box_y, new_res)
 radius = []
 beam = []
 
-beamfile = open('../catalogs/profile_AR1_2008_pixwin_130224.txt')
+beamfile = open('../../catalogs/profile_AR1_2008_pixwin_130224.txt')
 
 #read in beam data
 for line in beamfile:
@@ -109,6 +113,49 @@ for i in range(len(boss_clean)):
 
 center_pix = w.wcs_world2pix(list_coord, 1)
 
+#create matched filter;
+weights = np.sqrt(hits/np.max(hits))
+newdata = weights*ACT_data
+
+#T_other = data with boss sources masked
+#make the mask
+mask = np.zeros((len(ACT_data), len(ACT_data[0])))
+#loop through sources
+for c in range(len(center_pix)):
+    dec_pix = int(round(center_pix[c,1]))
+    ra_pix = int(round(center_pix[c,0]))
+
+    mask[dec_pix-3:dec_pix+3, ra_pix-3:ra_pix+3] = 1
+
+
+T_other = ma.masked_array(ACT_data, mask=mask)
+T_other_FT = np.fft.fft2(T_other)
+
+T_other_abs = np.absolute(T_other_FT)**(-2)
+#smooth T_other with a gaussian
+T_other_FT_smooth = ndimage.gaussian_filter(T_other_abs, 5)
+
+#find median value
+med = np.median(T_other_FT_smooth)
+#set any pixel > 10*median to the median value
+T_other_FT_smooth[T_other_FT_smooth > 10*med]
+
+#beam FT
+beam_FT_2d = np.fft.fft2(beam2D)
+beam_conj = np.conj(beam_FT_2d)
+
+#filter
+filt_top = ndimage.convolve(T_other_FT_smooth, beam_conj, mode= 'constant', cval = 0.0)
+bot1 = ndimage.convolve(filt_top, beam_FT_2d, mode= 'constant', cval = 0.0)
+x_int = np.linspace(0, 1, len(bot1))
+y_int = np.linspace(0, 1, len(bot1[0]))
+#integrate filt_bottom to get the normalizing factor
+filt_bottom = simps(simps(bot1, y_int), x_int)
+match_filt = filt_top/filt_bottom
+
+#apply the filter to the weighted data
+finaldata = np.abs(np.fft.ifft2(np.fft.fft2(newdata)*match_filt))
+
 #loop through BOSS galaxies, pull out 10' map around the center pixel
 #repixelize, and convolve the map, saving the average temperatures
 print('Beginning loop through BOSS galaxies:')
@@ -122,7 +169,7 @@ for c in range(len(boss_clean)):
     ra_pix = int(round(center_pix[c,0]))
     dec_pix = int(round(center_pix[c,1]))
 
-    dataMap = ACT_data[dec_pix-10:dec_pix+10, ra_pix-10:ra_pix+10]
+    dataMap = finaldata[dec_pix-10:dec_pix+10, ra_pix-10:ra_pix+10]
     interp = interpolate.interp2d(x, y, dataMap)
     newMap = interp(xnew, ynew)
 
