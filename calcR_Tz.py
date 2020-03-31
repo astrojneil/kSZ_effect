@@ -9,6 +9,7 @@
 #imports
 import numpy as np
 import pandas as pd
+from astropy.cosmology import WMAP9 as cosmo
 from progressBar import *
 
 #constants, Hand et al., Dunkle et al. 2011
@@ -28,7 +29,7 @@ i = 0
 j = 0
 initBar()
 for g in range(len(boss_clean)):
-    R = R_cons*(1 - 1/(np.sqrt(1+boss_clean['z'][g])))
+    R = cosmo.comoving_distance(boss_clean['z'][g])
     RList.append(R)
 
     T_bot = np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
@@ -36,7 +37,7 @@ for g in range(len(boss_clean)):
 
     T_top = boss_clean['CMB_temp']*np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
     T_top_sum = T_top.sum()
-    
+
     T_z = T_top_sum/T_bot_sum
     T_zList.append(T_z)
 
