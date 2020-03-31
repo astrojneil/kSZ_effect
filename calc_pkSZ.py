@@ -14,11 +14,12 @@ from progressBar import *
 import random
 
 #load data
-pairData = pd.read_csv('pairCatalog_short.csv')
+pairInd = pd.read_csv('pairCatalog_ind_short.csv')
+galData = pd.read_csv('cleaned_boss_Temp_R_Tz.csv')
 
 #define bins
-binSize = 30
-numBins = 10
+binSize = 10
+numBins = 15
 binStart = 0
 
 #define arrays to hold data
@@ -37,15 +38,29 @@ for i in range(numBins):
     print('Bin: {} to {}'.format(binStart, binEnd))
 
     #select rows for each bin
-    bin_data = pairData[(pairData['r_ij'] >= binStart) & (pairData['r_ij'] < binEnd)]
-    N = len(bin_data['r_ij'])
+    bin_Ind = pairInd[(pairInd['r_ij'] >= binStart) & (pairInd['r_ij'] < binEnd)]
+    N = len(bin_Ind['r_ij'])
     binCount.append(N)
+
+    #make bin_data from indices
+    ind_list = bin_Ind.index.values
+
+    gal1 = bin_Ind['ind_i']
+    gal2 = bin_Ind['ind_j']
+    Temp1 = pd.DataFrame(galData['CMB_temp'].iloc[gal1]).reset_index(drop=True)
+    Temp2 = pd.DataFrame(galData['CMB_temp'].iloc[gal2]).reset_index(drop=True)
+    Tz1 = pd.DataFrame(galData['T_z'].iloc[gal1]).reset_index(drop=True)
+    Tz2 = pd.DataFrame(galData['T_z'].iloc[gal2]).reset_index(drop=True)
+    cij = bin_Ind['c_ij'].reset_index(drop=True)
+
+    bin_data = pd.concat([Temp1, Temp2, Tz1, Tz2, cij], axis=1, ignore_index = True)
+    bin_data.columns = ['Temp1', 'Temp2', 'Tz1', 'Tz2', 'c_ij']
 
     #sum or 'stack' all pairs within the bin
     bot = bin_data['c_ij']*bin_data['c_ij']
     bot_sum = bot.sum()
 
-    top = ((bin_data['Temp_1']-bin_data['T_z_1'])-(bin_data['Temp_2']-bin_data['T_z_2']))*bin_data['c_ij']
+    top = ((bin_data['Temp1']-bin_data['Tz1'])-(bin_data['Temp2']-bin_data['Tz2']))*bin_data['c_ij']
     top_sum = top.sum()
 
     pkSZ= -top_sum/bot_sum
@@ -62,7 +77,7 @@ for i in range(numBins):
         bot = newBin['c_ij']*newBin['c_ij']
         bot_sum = bot.sum()
 
-        top = ((newBin['Temp_1']-newBin['T_z_1'])-(newBin['Temp_2']-newBin['T_z_2']))*newBin['c_ij']
+        top = ((newBin['Temp1']-newBin['Tz1'])-(newBin['Temp2']-newBin['Tz2']))*newBin['c_ij']
         top_sum = top.sum()
 
         pkSZ= -top_sum/bot_sum
@@ -84,6 +99,7 @@ ax.errorbar(binCenters, pkSZ_all, yerr = errs, fmt = 'ro')
 ax.plot(binCenters, np.zeros(len(binCenters)), color = 'black')
 ax.set_ylabel('pkSZ (microKelvin)')
 ax.set_xlabel('Separation (Mpc)')
+print(binCount)
 
 
 #historgram:
@@ -93,4 +109,4 @@ ax.set_xlabel('Separation (Mpc)')
 #ax.plot([pkSZ_all[0]-errs[0], pkSZ_all[0]-errs[0]], [0, 90], linestyle = 'dashed', color = 'black')
 
 #save figure
-fig.savefig('pkSZ_v_Sep.png')
+fig.savefig('pkSZ_v_Sep_ind.png')

@@ -24,28 +24,33 @@ boss_clean = pd.read_csv('cleaned_boss_temps.csv')
 
 RList = []
 T_zList = []
+good_ind = []
 print('Beginning calculations...')
 i = 0
 j = 0
 initBar()
 for g in range(len(boss_clean)):
     R = cosmo.comoving_distance(boss_clean['z'][g])
-    RList.append(R)
+    if R < 0:
+        continue   #skip negative distances/redshifts
+    else:
+        RList.append(R.value)
+        T_bot = np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
+        T_bot_sum = T_bot.sum()
 
-    T_bot = np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
-    T_bot_sum = T_bot.sum()
+        T_top = boss_clean['CMB_temp']*np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
+        T_top_sum = T_top.sum()
 
-    T_top = boss_clean['CMB_temp']*np.exp(-(boss_clean['z'][g] - boss_clean['z'])**2/(2*sig_z**2))
-    T_top_sum = T_top.sum()
-
-    T_z = T_top_sum/T_bot_sum
-    T_zList.append(T_z)
+        T_z = T_top_sum/T_bot_sum
+        T_zList.append(T_z)
+        good_ind.append(g)
 
     i = i+1
     i, j = updateBar(i, j, len(boss_clean))
 
 
 print('\nDone! Saving to catalog')
+boss_clean = boss_clean.iloc[good_ind]
 boss_clean['R'] = RList
 boss_clean['T_z'] = T_zList
 
