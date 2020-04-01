@@ -10,79 +10,64 @@ import math
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from progressBar import *
-from timer import *
+
 import random
 
 #load data
 all_data = pd.read_csv('cleaned_boss_Temp_R_Tz.csv')
+
 #randomly select 300 galaxies to consider average quantities
 #r = random.sample(list(np.arange(len(all_data))), k=300)
-#temp_data = all_data.iloc[r]
+temp_data = all_data  #.iloc[r]
 
 #create new catalog for pairs
-#galaxy i: ra, dec, z, Temp, T_z, R
-#galaxy j: ra, dec, z, Temp, T_z, R
-#r_ij, theta_ij, pkSZ
+#ind_i, ind_j, r_ij, theta_ij, cij
+#column_list=['ind_i', 'ind_j', 'r_ij', 'theta_ij', 'c_ij']
+#df = pd.DataFrame(columns=column_list)
 
-separations = np.arange(0, 1050, 50)
 
-for test in range(10):
-    time = []
-    pair = []
-    r = random.sample(list(np.arange(len(all_data))), k=300)
-    temp_data = all_data.iloc[r]
-    for sep in range(len(separations)+1):
-        if sep == len(separations+1):
-            sep_val = 1000000
+i_list = []
+j_list = []
+rij_list = []
+theta_list = []
+cij_list = []
+
+print('Beginning pair calculation....')
+d, p = initBar()
+#scales as (len(temp_data)*len(temp_data)-1)/2
+for i in range(len(temp_data)):
+    c1 = SkyCoord(ra = temp_data['ra'][i]*u.degree, dec =temp_data['dec'][i]*u.degree, distance = temp_data['R'][i]*u.Mpc)
+    for j in range(len(temp_data)):
+        if i < j:
+            c2 = SkyCoord(ra = temp_data['ra'][j]*u.degree, dec = temp_data['dec'][j]*u.degree, distance= temp_data['R'][j]*u.Mpc)
+            theta = c1.separation(c2).rad
+            dist = c1.separation_3d(c2)
+            r_i = temp_data['R'][i]
+            r_j = temp_data['R'][j]
+
+            #skip over pairs with separations greater than 400 Mpc in order to reduce final pair catalog size
+            if dist < 400*u.Mpc:
+                c_ij = ((r_i - r_j)*(1+math.cos(theta)))/(2*np.sqrt(r_i**2 + r_j**2 - 2*r_i*r_j*math.cos(theta)))
+
+
+                i_list.append(i)
+                j_list.append(j)
+                rij_list.append(dist.value)
+                theta_list.append(theta)
+                cij_list.append(c_ij)
+                #newrow = [i, j, dist.value, theta, c_ij]
+                #newrow_frame = pd.DataFrame([newrow], columns = column_list)
+                #df = pd.concat([df,newrow_frame], ignore_index = True)
+            else:
+                #skip this pair
+                continue
         else:
-            sep_val = separations[sep]
-        column_list=['ra_1', 'dec_1', 'z_1', 'Temp_1', 'T_z_1', 'R_1','ra_2', 'dec_2', 'z_2', 'Temp_2', 'T_z_2', 'R_2', 'r_ij', 'theta_ij', 'c_ij']
-        df = pd.DataFrame(columns=column_list)
+            #avoid over-counting
+            continue
+    d = d+1
+    d, p = updateBar(d, p, len(temp_data))
 
-
-        print('Beginning pair calculation....')
-        d, p = initBar()
-        timer1 = Timer()
-        timer1.start()
-        #scales as (len(temp_data)*len(temp_data)-1)/2
-        for i in r: #range(len(temp_data)):
-            c1 = SkyCoord(ra = temp_data['ra'][i]*u.degree, dec =temp_data['dec'][i]*u.degree)
-            for j in r: #range(len(temp_data)):
-                if i < j:
-                    r_i = temp_data['R'][i]
-                    r_j = temp_data['R'][j]
-                    r_ij = abs(r_i - r_j)
-
-                    #skip over pairs with separations greater than sep Mpc in order to reduce final pair catalog size
-                    if r_ij < sep_val:
-                        c2 = SkyCoord(ra = temp_data['ra'][j]*u.degree, dec = temp_data['dec'][j]*u.degree)
-                        theta = c1.separation(c2).rad  #math.cos expects radians
-
-                        c_ij = ((r_i - r_j)*(1+math.cos(theta)))/(2*np.sqrt(r_i**2 + r_j**2 - 2*r_i*r_j*math.cos(theta)))
-
-                        newrow = [temp_data['ra'][i], temp_data['dec'][i], temp_data['z'][i], temp_data['CMB_temp'][i], temp_data['T_z'][i], temp_data['R'][i],
-                            temp_data['ra'][j], temp_data['dec'][j], temp_data['z'][j], temp_data['CMB_temp'][j], temp_data['T_z'][j], temp_data['R'][j],
-                            r_ij, theta, c_ij]
-                        newrow_frame = pd.DataFrame([newrow], columns = column_list)
-                        df = pd.concat([df,newrow_frame], ignore_index = True)
-                    else:
-                        #skip this pair
-                        continue
-                else:
-                    #avoid over-counting
-                    continue
-            d = d+1
-            d, p = updateBar(d, p, len(temp_data))
-
-        timer1.stop()
-
-        time.append(timer1._time)
-        pair.append(len(df))
-        print('\nDone!')
-        #print('Seperation: {} Mpc'.format(sep_val))
-        #timer1.print()
-        #print('Pairs found: {}'.format(len(df)))
-        df.to_csv('pairCatalog_test.csv')
-        del df
-    print(time)
-    print(pair)
+print('\nDone!')
+d = {'ind_i':i_list, 'ind_j':j_list, 'r_ij':rij_list, 'theta_ij':theta_list, 'c_ij':cij_list}
+df = pd.DataFrame(data=d)
+df.to_csv('pairCatalog_ind_short.csv')

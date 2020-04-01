@@ -99,8 +99,8 @@ flipMat = np.matrix(flipBeam)
 beam2D = np.asarray(np.multiply(flipMat, flipMat.T))
 
 #normalization for beam convolution
-cert = np.ones((new_res, new_res))
-norm = ndimage.convolve(cert, beam2D, mode='constant', cval = 1.0)
+cert_beam = np.ones((new_res, new_res))
+norm_beam = ndimage.convolve(cert_beam, beam2D, mode='constant', cval = 1.0)
 
 #find the pixel at the location of each BOSS galaxy
 list_coord = []
@@ -112,20 +112,27 @@ for i in range(len(boss_clean)):
     list_coord.append(coord)
 
 center_pix = w.wcs_world2pix(list_coord, 1)
+print(np.average(ACT_data))
 
 #create matched filter;
 weights = np.sqrt(hits/np.max(hits))
 newdata = weights*ACT_data
+print(np.average(newdata))
 
 #T_other = data with boss sources masked
 #make the mask
+#also set certainty array to zero where sources are masked
+#(there is no signal to the filter from masked locations)
+#(but does the gauassian smooth part put signal there?)
 mask = np.zeros((len(ACT_data), len(ACT_data[0])))
+cert_map = np.ones((len(ACT_data), len(ACT_data[0])))
 #loop through sources
 for c in range(len(center_pix)):
     dec_pix = int(round(center_pix[c,1]))
     ra_pix = int(round(center_pix[c,0]))
 
     mask[dec_pix-3:dec_pix+3, ra_pix-3:ra_pix+3] = 1
+    cert_map [dec_pix-3:dec_pix+3, ra_pix-3:ra_pix+3] = 0
 
 
 T_other = ma.masked_array(ACT_data, mask=mask)
@@ -144,9 +151,15 @@ T_other_FT_smooth[T_other_FT_smooth > 10*med]
 beam_FT_2d = np.fft.fft2(beam2D)
 beam_conj = np.conj(beam_FT_2d)
 
+norm_beamFFT = ndimage.convolve(cert_map, beam_FT_2d, mode='constant', cval=1.0)
+norm_beam_conj = ndimage.convolve(cert_map, beam_conj, mode='constant', cval=1.0)
+
 #filter
 filt_top = ndimage.convolve(T_other_FT_smooth, beam_conj, mode= 'constant', cval = 0.0)
+filt_top = filt_top/norm_beam_conj
 bot1 = ndimage.convolve(filt_top, beam_FT_2d, mode= 'constant', cval = 0.0)
+bot1 = bot1/norm_beamFFT
+
 x_int = np.linspace(0, 1, len(bot1))
 y_int = np.linspace(0, 1, len(bot1[0]))
 #integrate filt_bottom to get the normalizing factor
@@ -155,6 +168,7 @@ match_filt = filt_top/filt_bottom
 
 #apply the filter to the weighted data
 finaldata = np.abs(np.fft.ifft2(np.fft.fft2(newdata)*match_filt))
+print(np.average(finaldata))
 
 #loop through BOSS galaxies, pull out 10' map around the center pixel
 #repixelize, and convolve the map, saving the average temperatures
@@ -174,19 +188,19 @@ for c in range(len(boss_clean)):
     newMap = interp(xnew, ynew)
 
     convMap = ndimage.convolve(newMap, beam2D, mode='constant', cval = 0.0)
-    normMap = convMap/norm
+    normMap = convMap/norm_beam
 
     maskAr, size = datamask(normMap, 16, [int(new_res/2), int(new_res/2)])
     temp = np.sum(maskAr*normMap)/size
     all_temps.append(temp)
     i = i+1
-    updateBar(i, j, len(boss_clean))
+    i, j = updateBar(i, j, len(boss_clean))
 
 
 
 print('Saving temperatures to catalog')
 boss_clean['CMB_temp'] = all_temps
 
-boss_clean.to_csv('cleaned_boss_temps.csv')
+boss_clean.to_csv('cleaned_boss_temps_test.csv')
 
 ACT_table.close()
