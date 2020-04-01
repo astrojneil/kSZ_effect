@@ -15,7 +15,7 @@ import random
 
 #load data
 pairInd = pd.read_csv('pairCatalog_ind_short.csv')
-galData = pd.read_csv('cleaned_boss_Temp_R_Tz.csv')
+galData = pd.read_csv('cleaned_boss_Temp_R_Tz_test.csv')
 
 #define bins
 binSize = 10
@@ -109,4 +109,4 @@ print(binCount)
 #ax.plot([pkSZ_all[0]-errs[0], pkSZ_all[0]-errs[0]], [0, 90], linestyle = 'dashed', color = 'black')
 
 #save figure
-fig.savefig('pkSZ_v_Sep_ind.png')
+fig.savefig('pkSZ_v_Sep_ind_test.png')
